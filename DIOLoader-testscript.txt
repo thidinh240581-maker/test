@@ -2982,77 +2982,97 @@ spawn(function()
     end
 end)
 
-Cake = Tabs.Main:AddToggle({
+Tabs.Main:AddToggle({
     Name = "Auto Farm Cake Prince",
     Description = "",
     Default = false,
     Callback = function(Value)
-    _G.Auto_Cake_Prince = Value
-end
+        _G.Auto_Cake_Prince = Value
+    end
 })
 
 spawn(function()
-    while task.wait() do
+    while task.wait(0.5) do
         if _G.Auto_Cake_Prince and not _G.AutoRaidCastle then
             pcall(function()
                 local player = game.Players.LocalPlayer
-                local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-                local questUI = player.PlayerGui.Main.Quest
+                local char = player.Character
+                
+                -- Kiểm tra nhân vật có tồn tại và còn sống hay không (Hỗ trợ tự động hồi sinh và bay lại từ đầu khi chết)
+                if not char or not char:FindFirstChild("Humanoid") or char.Humanoid.Health <= 0 then 
+                    return 
+                end
+                
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
+
+                local questUI = player.PlayerGui:FindFirstChild("Main") and player.PlayerGui.Main:FindFirstChild("Quest")
                 local enemies = workspace.Enemies
                 local cakeMap = workspace.Map:FindFirstChild("CakeLoaf")
                 local bigMirror = cakeMap and cakeMap:FindFirstChild("BigMirror")
-                if not root then return end
 
+                -- Xử lý nhận nhiệm vụ chống kẹt và di chuyển đến NPC nhận quest
                 if _G.AcceptQuestC and questUI and not questUI.Visible then
                     local questPos = CFrame.new(-1927.92, 37.8, -12842.54)
-                    _tp(questPos)
-                    while (questPos.Position - root.Position).Magnitude > 50 do
-                        task.wait(0.2)
+                    local loopTimeout = tick() + 5
+
+                    while (questPos.Position - root.Position).Magnitude > 50 and _G.Auto_Cake_Prince do
+                        task.wait(0.1)
+                        if _tp then _tp(questPos) end
+                        
+                        if tick() > loopTimeout then
+                            root.CFrame = root.CFrame + Vector3.new(0, 100, 0)
+                            break 
+                        end
                     end
-                    local randomQuest = math.random(1, 4)
-                    local questData = {
-                        [1] = {"StartQuest", "CakeQuest2", 2},
-                        [2] = {"StartQuest", "CakeQuest2", 1},
-                        [3] = {"StartQuest", "CakeQuest1", 1},
-                        [4] = {"StartQuest", "CakeQuest1", 2}
-                    }
-                    pcall(function()
+                    
+                    if _G.Auto_Cake_Prince and (questPos.Position - root.Position).Magnitude <= 50 then
+                        local randomQuest = math.random(1, 4)
+                        local questData = {
+                            [1] = {"StartQuest", "CakeQuest2", 2},
+                            [2] = {"StartQuest", "CakeQuest2", 1},
+                            [3] = {"StartQuest", "CakeQuest1", 1},
+                            [4] = {"StartQuest", "CakeQuest1", 2}
+                        }
                         game.ReplicatedStorage.Remotes.CommF_:InvokeServer(unpack(questData[randomQuest]))
-                    end)
+                    end
                 end
 
                 if not cakeMap then
-                    _tp(CFrame.new(-2077, 252, -12373))
-                    task.wait(2)
+                    if _tp then _tp(CFrame.new(-2077, 252, -12373)) end
+                    task.wait(1)
                     return
                 end
 
+                -- Xử lý đánh Boss Cake Prince (Đánh đến khi chết hoàn toàn không giới hạn thời gian, khi chết sẽ tự động quét và bay đến đánh tiếp ở vòng lặp sau)
                 if bigMirror and (bigMirror.Other.Transparency == 0 or enemies:FindFirstChild("Cake Prince")) then
                     local boss = GetConnectionEnemies("Cake Prince")
                     if boss then
-                        repeat task.wait()
+                        repeat 
+                            task.wait()
                             Attack.Kill2(boss, _G.Auto_Cake_Prince)
-                        until not _G.Auto_Cake_Prince or not boss.Parent or boss.Humanoid.Health <= 0
+                        until not _G.Auto_Cake_Prince or not boss.Parent or not boss:FindFirstChild("Humanoid") or boss.Humanoid.Health <= 0
                     else
-                        _tp(CFrame.new(-2151.82, 149.32, -12404.91))
+                        if _tp then _tp(CFrame.new(-2151.82, 149.32, -12404.91)) end
                     end
                 else
-
+                    -- Xử lý đánh quái thường trong danh sách (Giới hạn tối đa 15 giây, nếu không kết diệt được hoặc bị kẹt sẽ tự động chuyển sang con khác)
                     local CakeMobs = {"Cookie Crafter","Cake Guard","Baking Staff","Head Baker"}
                     local mob = GetConnectionEnemies(CakeMobs)
                     if mob then
-                        repeat task.wait()
+                        local killTimeout = tick() + 15
+                        repeat 
+                            task.wait()
                             Attack.Kill(mob, _G.Auto_Cake_Prince)
-                        until not _G.Auto_Cake_Prince or not mob.Parent or mob.Humanoid.Health <= 0 or (bigMirror and bigMirror.Other.Transparency == 0)
+                        until not _G.Auto_Cake_Prince or not mob.Parent or not mob:FindFirstChild("Humanoid") or mob.Humanoid.Health <= 0 or (bigMirror and bigMirror.Other.Transparency == 0) or tick() > killTimeout
                     else
-                        _tp(CFrame.new(-2077, 252, -12373))
+                        if _tp then _tp(CFrame.new(-2077, 252, -12373)) end
                     end
                 end
             end)
         end
     end
 end)
-
 CakeQ = Tabs.Main:AddToggle({
 Name = "Accept Quests", 
 Description = "", 
@@ -3270,7 +3290,7 @@ spawn(function()
         "Possessed Mummy"
     }
 
-    while wait(0.5) do
+    while task.wait(0.5) do
         if not _G.AutoFarm_Bone then continue end
 
         pcall(function()
@@ -3278,46 +3298,47 @@ spawn(function()
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then return end
 
-           
             local questUI =
                 player.PlayerGui:FindFirstChild("Main")
                 and player.PlayerGui.Main:FindFirstChild("Quest")
 
             local bone = GetConnectionEnemies(BonesTable)
 
-            
             if _G.AcceptQuestB and questUI and not questUI.Visible then
-                local questPos = CFrame.new(-9516.99316,172.01718,6078.46533)
-                _tp(questPos)
+                local questPos = CFrame.new(-9516.99316, 172.01718, 6078.46533)
+                local loopTimeout = tick() + 5
 
-                repeat wait(2)
-                until not _G.AutoFarm_Bone
-                   or (questPos.Position - root.Position).Magnitude <= 50
+                repeat
+                    task.wait(0.1)
+                    if _tp then _tp(questPos) end
+                until not _G.AutoFarm_Bone or (questPos.Position - root.Position).Magnitude <= 50 or tick() > loopTimeout
+
+                if _G.AutoFarm_Bone and tick() > loopTimeout and root then
+                    root.CFrame = root.CFrame + Vector3.new(0, 100, 0)
+                end
 
                 if not _G.AutoFarm_Bone then return end
 
                 local questData = {
-                    {"StartQuest","HauntedQuest2",2},
-                    {"StartQuest","HauntedQuest2",1},
-                    {"StartQuest","HauntedQuest1",1},
-                    {"StartQuest","HauntedQuest1",2}
+                    {"StartQuest", "HauntedQuest2", 2},
+                    {"StartQuest", "HauntedQuest2", 1},
+                    {"StartQuest", "HauntedQuest1", 1},
+                    {"StartQuest", "HauntedQuest1", 2}
                 }
 
                 game.ReplicatedStorage.Remotes.CommF_:InvokeServer(
-                    unpack(questData[math.random(1,#questData)])
+                    unpack(questData[math.random(1, #questData)])
                 )
             end
 
-           
             if bone then
                 repeat
-                    wait()
+                    task.wait()
                     Attack.Kill(bone, true)
                 until not _G.AutoFarm_Bone
-                   or not bone.Parent
-                   or bone.Humanoid.Health <= 0
+                    or not bone.Parent
+                    or bone.Humanoid.Health <= 0
             else
-            
                 _tp(CFrame.new(-9495.6806640625, 453.58624267578125, 5977.3486328125))
             end
         end)
@@ -3332,8 +3353,6 @@ Callback = function(Value)
   _G.AcceptQuestB = Value
 end
 })        
-
-
 
 Tabs.Main:AddToggle({
 Name = "Auto Soul Reaper", 
