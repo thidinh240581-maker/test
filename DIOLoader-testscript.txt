@@ -238,12 +238,12 @@ statsSetings = function(Num, value)
 end
 local BringEnemy = function(Mon)
     if not _B then return end
-    
-    if not Mon or not Mon:FindFirstChild("HumanoidRootPart") then
+    if not Mon then  
+        -- Tự động tìm mob nếu không có Mon
         local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
         
-        local closest, closestDist = nil, math.huge
+        local closestDist = math.huge
         for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
             local hum = enemy:FindFirstChildOfClass("Humanoid")
             local root = enemy:FindFirstChild("HumanoidRootPart")
@@ -251,77 +251,73 @@ local BringEnemy = function(Mon)
                 local dist = (root.Position - hrp.Position).Magnitude
                 if dist < closestDist then
                     closestDist = dist
-                    closest = enemy
+                    Mon = enemy
                 end
             end
         end
-        Mon = closest
         if not Mon then return end
     end
+    
+    local AreaMob = false
+    
+    local function Mobs(enemy)
+        local hum = enemy:FindFirstChildOfClass("Humanoid")
+        local root = enemy:FindFirstChild("HumanoidRootPart")
+        return hum and root and hum.Health > 0, root, hum
+    end
 
-    local targetRoot = Mon.HumanoidRootPart
-    local targetPos = targetRoot.Position
-
+    local function Network(part)
+        if isnetworkowner then
+            return isnetworkowner(part)
+        end
+        return part.ReceiveAge == 0 and not part.Anchored and part.Velocity.Magnitude > 0
+    end
+    
     pcall(function()
-        if sethiddenproperty and not _B.SimRadiusSet then
-            sethiddenproperty(plr, "SimulationRadius", 10000)
-            _B.SimRadiusSet = true
+        -- Tăng simulation radius
+        if sethiddenproperty then 
+            sethiddenproperty(plr, "SimulationRadius", math.huge)
         end
-
-        local isAreaMob = false
-        local count = 0
-
+        
+        local targetPos = Mon.HumanoidRootPart.Position
+        
         for _, v in ipairs(workspace.Enemies:GetChildren()) do
-            if v == Mon then continue end
-            if v.Name ~= Mon.Name then continue end
-            
-            local hum = v:FindFirstChildOfClass("Humanoid")
-            local root = v:FindFirstChild("HumanoidRootPart")
-            if not (hum and root and hum.Health > 0) then continue end
-
-            local distance = (root.Position - targetPos).Magnitude
-
-            -- Cleanup khi xa
-            if distance > 3000 then
-                local bv = root:FindFirstChild("BodyVelocity")
-                if bv then bv:Destroy() end
-                root.CanCollide = true
-                if hum.WalkSpeed == 0 then
-                    hum.WalkSpeed = 16
+            if v ~= Mon then
+                local alive, root, hum = Mobs(v)
+                if alive and v.Name == Mon.Name then
+                    local distance = (root.Position - targetPos).Magnitude
+                    if distance <= 3000 then
+                        -- Tạo BodyVelocity để giữ mob
+                        local bv = root:FindFirstChild("BodyVelocity")
+                        if not bv then
+                            bv = Instance.new("BodyVelocity")
+                            bv.Name = "BodyVelocity"
+                            bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                            bv.Velocity = Vector3.zero
+                            bv.Parent = root
+                        end
+                        
+                        if distance <= 10 then
+                            AreaMob = true
+                        end
+                        
+                        -- Kéo mob lại nếu là network owner và chưa ở gần
+                        if not AreaMob and Network(root) then
+                            root.CFrame = CFrame.new(targetPos)
+                        end
+                        
+                        -- Tắt va chạm và ngăn di chuyển
+                        root.CanCollide = false
+                        hum.WalkSpeed = 0
+                        hum.JumpPower = 0
+                    end
                 end
-                continue
-            end
-
-            if distance > 3000 then continue end
-
-            count += 1
-            if count > 25 then break end
-
-            if distance <= 15 then
-                isAreaMob = true
-            end
-
-            root.CanCollide = false
-            hum.WalkSpeed = 0
-            hum.JumpPower = 0
-
-            local bv = root:FindFirstChild("BodyVelocity")
-            if not bv then
-                bv = Instance.new("BodyVelocity")
-                bv.Name = "BodyVelocity"
-                bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-                bv.Velocity = Vector3.zero
-                bv.Parent = root
-            end
-
-            if not isAreaMob and (not isnetworkowner or isnetworkowner(root)) then
-                root.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
             end
         end
-
-        -- Mob chính
-        if targetRoot then
-            targetRoot.CanCollide = false
+        
+        -- Xử lý mob chính
+        if Mon and Mon:FindFirstChild("HumanoidRootPart") then
+            Mon.HumanoidRootPart.CanCollide = false
             Mon.Humanoid.WalkSpeed = 0
             Mon.Humanoid.JumpPower = 0
         end
