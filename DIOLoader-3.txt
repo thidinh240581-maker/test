@@ -181,7 +181,6 @@ end
 BringEnemy = function(Mon)
     if not _B then return end
     if not Mon then 
-        -- Tự động tìm mob nếu không có Mon
         local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
         
@@ -216,11 +215,6 @@ BringEnemy = function(Mon)
     end
     
     pcall(function()
-        -- Tăng simulation radius
-        if sethiddenproperty then 
-            sethiddenproperty(plr, "SimulationRadius", math.huge)
-        end
-        
         local targetPos = Mon.HumanoidRootPart.Position
         
         for _, v in ipairs(workspace.Enemies:GetChildren()) do
@@ -228,8 +222,7 @@ BringEnemy = function(Mon)
                 local alive, root, hum = Mobs(v)
                 if alive and v.Name == Mon.Name then
                     local distance = (root.Position - targetPos).Magnitude
-                    if distance <= 3000 then
-                        -- Tạo BodyVelocity để giữ mob
+                    if distance <= 350 then
                         local bv = root:FindFirstChild("BodyVelocity")
                         if not bv then
                             bv = Instance.new("BodyVelocity")
@@ -243,12 +236,10 @@ BringEnemy = function(Mon)
                             AreaMob = true
                         end
                         
-                        -- Kéo mob lại nếu là network owner và chưa ở gần
                         if not AreaMob and Network(root) then
                             root.CFrame = CFrame.new(targetPos)
                         end
                         
-                        -- Tắt va chạm và ngăn di chuyển
                         root.CanCollide = false
                         hum.WalkSpeed = 0
                         hum.JumpPower = 0
@@ -257,7 +248,6 @@ BringEnemy = function(Mon)
             end
         end
         
-        -- Xử lý mob chính
         if Mon and Mon:FindFirstChild("HumanoidRootPart") then
             Mon.HumanoidRootPart.CanCollide = false
             Mon.Humanoid.WalkSpeed = 0
