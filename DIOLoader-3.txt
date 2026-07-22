@@ -180,10 +180,8 @@ statsSetings = function(Num, value)
 end
 BringEnemy = function(Mon)
     if not _B then return end
-    
-    LastBringTime = tick()
-
     if not Mon then 
+        -- Tự động tìm mob nếu không có Mon
         local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return end
         
@@ -201,93 +199,78 @@ BringEnemy = function(Mon)
         end
         if not Mon then return end
     end
+    
+    local AreaMob = false
+    
+    local function Mobs(enemy)
+        local hum = enemy:FindFirstChildOfClass("Humanoid")
+        local root = enemy:FindFirstChild("HumanoidRootPart")
+        return hum and root and hum.Health > 0, root, hum
+    end
 
+    local function Network(part)
+        if isnetworkowner then
+            return isnetworkowner(part)
+        end
+        return part.ReceiveAge == 0 and not part.Anchored and part.Velocity.Magnitude > 0
+    end
+    
     pcall(function()
+        -- Tăng simulation radius
         if sethiddenproperty then 
             sethiddenproperty(plr, "SimulationRadius", math.huge)
         end
         
-        local targetPos = Mon.HumanoidRootPart.Position + Vector3.new(0, 5, 0) -- Nhấc lên một chút
-        
-        -- Cleanup cũ
-        for _, v in ipairs(workspace.Enemies:GetChildren()) do
-            local root = v:FindFirstChild("HumanoidRootPart")
-            if root then
-                local bv = root:FindFirstChild("BodyVelocity")
-                if bv then bv:Destroy() end
-                
-                -- Xóa thêm BodyPosition / AlignPosition nếu có
-                if root:FindFirstChild("BodyPosition") then root.BodyPosition:Destroy() end
-                if root:FindFirstChild("AlignPosition") then root.AlignPosition:Destroy() end
-            end
-        end
+        local targetPos = Mon.HumanoidRootPart.Position
         
         for _, v in ipairs(workspace.Enemies:GetChildren()) do
             if v ~= Mon then
-                local hum = v:FindFirstChildOfClass("Humanoid")
-                local root = v:FindFirstChild("HumanoidRootPart")
-                if hum and root and hum.Health > 0 and v.Name == Mon.Name then
+                local alive, root, hum = Mobs(v)
+                if alive and v.Name == Mon.Name then
                     local distance = (root.Position - targetPos).Magnitude
-                    
-                    if distance <= 2000 then
-                        -- === CÁCH GHIM MẠNH HƠN ===
-                        local bv = Instance.new("BodyVelocity")
-                        bv.Name = "BodyVelocity"
-                        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-                        bv.Velocity = (targetPos - root.Position) * 50   -- Kéo mạnh về phía target
-                        bv.Parent = root
+                    if distance <= 3000 then
+                        -- Tạo BodyVelocity để giữ mob kèm cơ chế tự xóa sau 20s
+                        local bv = root:FindFirstChild("BodyVelocity")
+                        if not bv then
+                            bv = Instance.new("BodyVelocity")
+                            bv.Name = "BodyVelocity"
+                            bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+                            bv.Velocity = Vector3.zero
+                            bv.Parent = root
+                            
+                            -- Tự động xóa BodyVelocity sau 20 giây để tối ưu
+                            task.delay(20, function()
+                                if bv and bv.Parent then
+                                    bv:Destroy()
+                                end
+                            end)
+                        end
                         
-                        -- Tắt hoàn toàn AI + Physics
+                        if distance <= 10 then
+                            AreaMob = true
+                        end
+                        
+                        -- Kéo mob lại nếu là network owner và chưa ở gần
+                        if not AreaMob and Network(root) then
+                            root.CFrame = CFrame.new(targetPos)
+                        end
+                        
+                        -- Tắt va chạm và ngăn di chuyển
                         root.CanCollide = false
                         hum.WalkSpeed = 0
                         hum.JumpPower = 0
-                        hum.PlatformStand = true
-                        
-                        -- Nhấc quái lên cao một chút để tránh kẹt map
-                        if distance > 10 then
-                            root.CFrame = CFrame.new(root.Position.X, targetPos.Y + 4, root.Position.Z)
-                        end
                     end
                 end
             end
         end
         
-        -- Mob chính (target)
+        -- Xử lý mob chính
         if Mon and Mon:FindFirstChild("HumanoidRootPart") then
-            local root = Mon.HumanoidRootPart
-            local hum = Mon:FindFirstChildOfClass("Humanoid")
-            root.CanCollide = false
-            if hum then
-                hum.WalkSpeed = 0
-                hum.JumpPower = 0
-                hum.PlatformStand = true
-            end
+            Mon.HumanoidRootPart.CanCollide = false
+            Mon.Humanoid.WalkSpeed = 0
+            Mon.Humanoid.JumpPower = 0
         end
     end)
-end
-
--- ====================== AUTO CLEANUP ======================
-LastBringTime = LastBringTime or 0
-
-local function AutoCleanupBV()
-    pcall(function()
-        if tick() - LastBringTime > 8 then  -- Giảm xuống 8 giây
-            for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
-                local root = enemy:FindFirstChild("HumanoidRootPart")
-                if root then
-                    for _, obj in ipairs(root:GetChildren()) do
-                        if obj:IsA("BodyVelocity") or obj:IsA("BodyPosition") or obj:IsA("AlignPosition") then
-                            obj:Destroy()
-                        end
-                    end
-                end
-            end
-        end
-    end)
-end
-
-if not AutoCleanupConnection then
-    AutoCleanupConnection = game:GetService("RunService").Heartbeat:Connect(AutoCleanupBV)
 end
 Useskills = function(weapon, skill)
   if weapon == "Melee" then
