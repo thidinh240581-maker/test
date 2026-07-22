@@ -229,7 +229,7 @@ BringEnemy = function(Mon)
                 if alive and v.Name == Mon.Name then
                     local distance = (root.Position - targetPos).Magnitude
                     if distance <= 3000 then
-                        -- Tạo BodyVelocity để giữ mob kèm cơ chế tự xóa sau 20s
+                        -- Tạo BodyVelocity để giữ mob
                         local bv = root:FindFirstChild("BodyVelocity")
                         if not bv then
                             bv = Instance.new("BodyVelocity")
@@ -237,13 +237,6 @@ BringEnemy = function(Mon)
                             bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
                             bv.Velocity = Vector3.zero
                             bv.Parent = root
-                            
-                            -- Tự động xóa BodyVelocity sau 20 giây để tối ưu
-                            task.delay(20, function()
-                                if bv and bv.Parent then
-                                    bv:Destroy()
-                                end
-                            end)
                         end
                         
                         if distance <= 10 then
