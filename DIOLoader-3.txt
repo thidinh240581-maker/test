@@ -8392,6 +8392,7 @@ Tabs.SeaEvent:AddSection("Choose Sea Event")
 Q = Tabs.SeaEvent:AddDropdown({
     Name = "Select Boats",
 	Options = ListSeaBoat,
+	Default = "Guardian", 
 	Callback = function(Value)
         _G.SelectedBoat = Value
     end
@@ -8399,12 +8400,14 @@ Q = Tabs.SeaEvent:AddDropdown({
 Tabs.SeaEvent:AddButton({
 Name = "Buy Boats", 
 Description = "",
+Default = true, 
 Callback = function()
   replicated.Remotes.CommF_:InvokeServer("BuyBoat",_G.SelectedBoat)
 end})
 Q = Tabs.SeaEvent:AddDropdown({
 Name = "Select Sea Level",
 Options = ListSeaZone,
+Default = "Lv 6", 
 Callback = function(Value)
   _G.DangerSc = Value
 end})
@@ -11722,7 +11725,7 @@ end})
 briggt1 = Tabs.Hop:AddToggle({
 Name = "Turn on Full Bright", 
 Description = "", 
-Default = false,
+Default = true, 
 Callback = function(Value)
   bright = Value
   if Value == true then
