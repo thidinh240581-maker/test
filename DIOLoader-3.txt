@@ -215,6 +215,10 @@ BringEnemy = function(Mon)
     end
     
     pcall(function()
+        if sethiddenproperty then 
+            sethiddenproperty(plr, "SimulationRadius", math.huge)
+        end
+        
         local targetPos = Mon.HumanoidRootPart.Position
         
         for _, v in ipairs(workspace.Enemies:GetChildren()) do
