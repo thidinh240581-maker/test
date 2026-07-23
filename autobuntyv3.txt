@@ -1,0 +1,378 @@
+getgenv().Config = {
+    ["Team"] = "Pirates",
+    ["Safe Health"] = { 40, 50 },
+    ["Skip"] = {
+        ["Fruit"] = {
+            ["Enabled"] = true,
+            ["Avoid Fruit"] = { "Portal", "Kitsune", "Tiger", "Dragon" }
+        },
+        ["Avoid V4"] = true
+    },
+    ["Spam All Skill On V4"] = {
+        ["Enabled"] = true,
+        ["Weapons"] = { "Melee", "Gun", "Sword", "Blox Fruit" }
+    },
+    ["Custom Y Run"] = {
+        ["Enabled"] = true,
+        ["Y Run"] = 500
+    },
+    ["Other"] = {
+        ["Turn On V3"] = true,
+        ["Turn On V4"] = true,
+        ["FPS BOOST"] = false,
+        ["White Screen"] = false,
+        ["Click Delay"] = 0.5,
+        ["Spin Bot"] = {
+            ["Enable"] = true,
+            ["Spin Speed"] = 15,
+            ["Spin Radius"] = 10,
+        }
+    },
+    ["Items"] = {
+        ["Use"] = { "Melee", "Gun", "Sword", "Blox Fruit" },
+        ["Melee"] = { Enable = true, Skills = { Z = {Enable=true, HoldTime=0.6}, X={Enable=true, HoldTime=0.3}, C={Enable=true, HoldTime=0.5} } },
+        ["Blox Fruit"] = { Enable = true, Skills = { Z = {Enable=true, HoldTime=0}, X={Enable=true, HoldTime=0}, C={Enable=true, HoldTime=0}, V={Enable=false, HoldTime=0}, F={Enable=false, HoldTime=0} } },
+        ["Sword"] = { Enable = true, Skills = { Z = {Enable=true, HoldTime=0.8}, X={Enable=true, HoldTime=0.5} } },
+        ["Gun"] = { Enable = true, Skills = { Z = {Enable=true, HoldTime=0}, X={Enable=true, HoldTime=0} } }
+    },
+    ["Webhook"] = { ["Enabled"] = false, ["Url"] = "" }
+}
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local root = character:WaitForChild("HumanoidRootPart")
+
+local Remotes = ReplicatedStorage.Remotes
+local CommF = Remotes.CommF_
+local CommE = Remotes.CommE
+
+--// Variables
+local Target = nil
+local IsV4 = false
+local CurrentSea = 1
+local OrbitConnection = nil
+local Tween = nil
+
+--// Check World
+if game.PlaceId == 2753915549 or game.PlaceId == 85211729168715 then
+    CurrentSea = 1
+elseif game.PlaceId == 4442272183 or game.PlaceId == 79091703265657 then
+    CurrentSea = 2
+elseif game.PlaceId == 7449423635 or game.PlaceId == 100117331123089 then
+    CurrentSea = 3
+end
+
+--// Helper Functions
+local function GetFruitName(plr)
+    local fruit = plr.Character:FindFirstChildOfClass("Tool")
+    if fruit and fruit:FindFirstChild("Fruit") then
+        return fruit.Name
+    end
+    return nil
+end
+
+local function IsV4Active(plr)
+    return plr.Character and plr.Character:FindFirstChild("RaceTransformed") or false
+end
+
+local function GetNearestPlayer()
+    local nearest, dist = nil, math.huge
+    for _, v in ipairs(Players:GetPlayers()) do
+        if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") and v.Character.Humanoid.Health > 0 then
+            if Config.Skip.Fruit.Enabled then
+                local fruit = GetFruitName(v)
+                if fruit and table.find(Config.Skip.Fruit.AvoidFruit, fruit) then continue end
+            end
+            if Config.Skip.AvoidV4 and IsV4Active(v) then continue end
+
+            local d = (root.Position - v.Character.HumanoidRootPart.Position).Magnitude
+            if d < dist then
+                dist = d
+                nearest = v
+            end
+        end
+    end
+    return nearest
+end
+
+local function SendWebhook(title, desc, color)
+    if not Config.Webhook.Enabled or Config.Webhook.Url == "" then return end
+    -- Simple webhook code (you can expand)
+    local data = {
+        content = "",
+        embeds = {{
+            title = title,
+            description = desc,
+            color = color or 0x00ff00
+        }}
+    }
+    game:GetService("HttpService"):PostAsync(Config.Webhook.Url, game:GetService("HttpService"):JSONEncode(data))
+end
+
+--// Auto Team
+task.spawn(function()
+    while task.wait(3) do
+        pcall(function()
+            if player.Team == nil then
+                CommF:InvokeServer("SetTeam", Config.Team)
+            end
+        end)
+    end
+end)
+
+--// Auto Buso
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            if character and not character:FindFirstChild("HasBuso") then
+                CommF:InvokeServer("Buso")
+            end
+        end)
+    end
+end)
+
+--// Auto Ken (Observation)
+task.spawn(function()
+    while task.wait() do
+        if getgenv().Observation then
+            pcall(function()
+                CommE:FireServer("Ken", true)
+            end)
+        end
+    end
+end)
+
+--// Auto Enable PVP
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            CommF:InvokeServer("EnablePvp")
+        end)
+    end
+end)
+
+--// FPS Booster
+if Config.Other["FPS BOOST"] then
+    loadstring(game:HttpGet("https://pastefy.app/96m6gCwx/raw"))()
+end
+
+--// White Screen (low CPU)
+if Config.Other["White Screen"] then
+    game:GetService("Lighting").Brightness = 0
+    game:GetService("Lighting").ClockTime = 0
+    game:GetService("Lighting").FogEnd = 100000
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") and v.Material == Enum.Material.Grass then
+            v.Transparency = 1
+        end
+    end
+end
+
+--// Auto V3 & V4
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if Config.Other["Turn On V3"] then
+                CommF:InvokeServer("AwakeningChanger", "V3")
+            end
+            if Config.Other["Turn On V4"] and not IsV4 then
+                CommF:InvokeServer("AwakeningChanger", "V4")
+            end
+        end)
+    end
+end)
+
+--// Safe Health + Y Run
+task.spawn(function()
+    while task.wait(0.2) do
+        pcall(function()
+            local hp = (humanoid.Health / humanoid.MaxHealth) * 100
+            if hp < Config.SafeHealth[1] then
+                if Config.CustomYRun.Enabled then
+                    root.CFrame = root.CFrame * CFrame.new(0, Config.CustomYRun.YRun, 0)
+                end
+                -- Dodge logic here
+            end
+        end)
+    end
+end)
+
+--// Spin Bot (Orbit)
+local function StartOrbit(target)
+    if OrbitConnection then OrbitConnection:Disconnect() end
+    OrbitConnection = RunService.Heartbeat:Connect(function()
+        if not target or not target.Character then return end
+        local angle = tick() * Config.Other.SpinBot.SpinSpeed
+        local offset = Vector3.new(
+            math.cos(angle) * Config.Other.SpinBot.SpinRadius,
+            0,
+            math.sin(angle) * Config.Other.SpinBot.SpinRadius
+        )
+        root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position)
+    end)
+end
+
+local function StopOrbit()
+    if OrbitConnection then
+        OrbitConnection:Disconnect()
+        OrbitConnection = nil
+    end
+end
+
+local function UseSkill(weapon, skill)
+    local data = Config.Items[weapon].Skills[skill]
+    if not data.Enable then return end
+
+    local tool = character:FindFirstChild(weapon) or character:FindFirstChildOfClass("Tool")
+    if tool then
+        tool:Activate()
+        if data.HoldTime > 0 then
+            task.wait(data.HoldTime)
+            VirtualUser:Button1Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+        end
+    end
+end
+
+local function AttackTarget(target)
+    if not target or not target.Character then return end
+
+    -- Spam all skills when V4
+    if IsV4 and Config.SpamAllSkillOnV4.Enabled then
+        for _, wp in ipairs(Config.SpamAllSkillOnV4.Weapons) do
+            for sk, _ in pairs(Config.Items[wp].Skills) do
+                UseSkill(wp, sk)
+            end
+        end
+        return
+    end
+
+    -- Normal combo
+    for _, weapon in ipairs(Config.Items.Use) do
+        if Config.Items[weapon].Enable then
+            for sk, data in pairs(Config.Items[weapon].Skills) do
+                if data.Enable then
+                    UseSkill(weapon, sk)
+                    task.wait(Config.Other.ClickDelay or 0.3)
+                end
+            end
+        end
+    end
+end
+
+--// Main Target Loop
+task.spawn(function()
+    while task.wait(0.1) do
+        pcall(function()
+            Target = GetNearestPlayer()
+            if Target then
+                if Config.Other.SpinBot.Enable then
+                    StartOrbit(Target)
+                end
+                AttackTarget(Target)
+            else
+                StopOrbit()
+            end
+        end)
+    end
+eend
+
+local IslandSpawns = {
+    -- ================= SEA 1 =================
+    ["WindMill"] = CFrame.new(979.79895019531, 16.516613006592, 1429.0466308594),
+    ["Marine"] = CFrame.new(-2566.4296875, 6.8556680679321, 2045.2561035156),
+    ["Middle Town"] = CFrame.new(-690.33081054688, 15.09425163269, 1582.2380371094),
+    ["Jungle"] = CFrame.new(-1612.7957763672, 36.852081298828, 149.12843322754),
+    ["Pirate Village"] = CFrame.new(-1181.3093261719, 4.7514905929565, 3803.5456542969),
+    ["Desert"] = CFrame.new(944.15789794922, 20.919729232788, 4373.3002929688),
+    ["Snow Island"] = CFrame.new(1347.8067626953, 104.66806030273, -1319.7370605469),
+    ["MarineFord"] = CFrame.new(-4914.8212890625, 50.963626861572, 4281.0278320313),
+    ["Colosseum"] = CFrame.new(-1427.6203613281, 7.2881078720093, -2792.7722167969),
+    ["Sky Island 1"] = CFrame.new(-4869.1025390625, 733.46051025391, -2667.0180664063),
+    ["Sky Island 2"] = CFrame.new(-4607.82275, 872.54248, -1667.55688),
+    ["Sky Island 3"] = CFrame.new(-7894.6176757813, 5547.1416015625, -380.29119873047),
+    ["Prison"] = CFrame.new(4875.330078125, 5.6519818305969, 734.85021972656),
+    ["Magma Village"] = CFrame.new(-5247.7163085938, 12.883934020996, 8504.96875),
+    ["Under Water Island"] = CFrame.new(61163.8515625, 11.6796875, 1819.7841796875),
+    ["Fountain City"] = CFrame.new(5127.1284179688, 59.501365661621, 4105.4458007813),
+
+    -- ================= SEA 2 =================
+    ["The Cafe"] = CFrame.new(-380.47927856445, 77.220390319824, 255.82550048828),
+    ["Frist Spot"] = CFrame.new(-11.311455726624, 29.276733398438, 2771.5224609375),
+    ["Green Zone"] = CFrame.new(-2448.5300292969, 73.016105651855, -3210.6306152344),
+    ["Zombie Island"] = CFrame.new(-5622.033203125, 492.19604492188, -781.78552246094),
+    ["Two Snow Mountain"] = CFrame.new(753.14288330078, 408.23559570313, -5274.6147460938),
+    ["Punk Hazard"] = CFrame.new(-6127.654296875, 15.951762199402, -5040.2861328125),
+    ["Cursed Ship"] = CFrame.new(923.40197753906, 125.05712890625, 32885.875),
+    ["Ice Castle"] = CFrame.new(6148.4116210938, 294.38687133789, -6741.1166992188),
+    ["Forgotten Island"] = CFrame.new(-3032.7641601563, 317.89672851563, -10075.373046875),
+
+    -- ================= SEA 3 =================
+    ["Port Town"] = CFrame.new(-290.7376708984375, 6.729952812194824, 5343.5537109375),
+    ["Hydra Island"] = CFrame.new(5661.5322265625, 1013.0907592773438, -334.9649963378906),
+    ["Great Tree"] = CFrame.new(2681.2736816406, 1682.8092041016, -7190.9853510625),
+    ["Castle On The Sea"] = CFrame.new(-5075.50927734375, 314.5155029296875, -3150.0224609375),
+    ["Floating Turtle"] = CFrame.new(-13274.528320313, 531.82073974609, -7579.22265625),
+    ["Mansion"] = CFrame.new(-12468.538085938, 375.00942993164, -7554.6254882812),
+    ["Haunted Castle"] = CFrame.new(-9515.3720703125, 164.00624084473, 5786.0610351562),
+    ["Ice Cream Island"] = CFrame.new(-902.56817626953, 79.93204498291, -10988.84765625),
+    ["Peanut Island"] = CFrame.new(-2062.7475585938, 50.473892211914, -10232.568359375),
+    ["Cake Island"] = CFrame.new(-1884.7747802734375, 19.327526092529297, -11666.8974609375),
+    ["Cocoa Island"] = CFrame.new(87.94276428222656, 73.55451202392578, -12319.46484375),
+    ["Candy Island"] = CFrame.new(-1014.4241943359375, 149.11068725585938, -14555.962890625),
+    ["Tiki Outpost"] = CFrame.new(-16542.447265625, 55.68632888793945, 1044.41650390625)
+}
+
+local function TweenTo(pos, speed)
+    if Tween then Tween:Cancel() end
+    local dist = (root.Position - pos.Position).Magnitude
+    local time = dist / (speed or 350)
+
+    Tween = TweenService:Create(root, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = pos})
+    Tween:Play()
+    Tween.Completed:Wait()
+end
+
+--// Teleport to nearest island with players
+task.spawn(function()
+    while task.wait(15) do
+        pcall(function()
+            if not Target then
+                for name, cframe in pairs(IslandSpawns) do
+                    if #Players:GetPlayers() > 1 then -- có người
+                        TweenTo(cframe, 350)
+                        task.wait(3)
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+--// Aim Camera
+task.spawn(function()
+    while task.wait() do
+        if Target and Target.Character then
+            Workspace.CurrentCamera.CFrame = CFrame.lookAt(
+                Workspace.CurrentCamera.CFrame.Position,
+                Target.Character.HumanoidRootPart.Position
+            )
+        end
+    end
+end)
+
+--// Anti AFK
+player.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+end)
+
+print("✅ Auto Bounty Script Loaded Successfully!")
