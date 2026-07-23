@@ -2,31 +2,18 @@ getgenv().Config = {
     ["Team"] = "Pirates",
     ["Safe Health"] = { 40, 50 },
     ["Skip"] = {
-        ["Fruit"] = {
-            ["Enabled"] = true,
-            ["Avoid Fruit"] = { "Portal", "Kitsune", "Tiger", "Dragon" }
-        },
+        ["Fruit"] = { ["Enabled"] = true, ["Avoid Fruit"] = { "Portal", "Kitsune", "Tiger", "Dragon" } },
         ["Avoid V4"] = true
     },
-    ["Spam All Skill On V4"] = {
-        ["Enabled"] = true,
-        ["Weapons"] = { "Melee", "Gun", "Sword", "Blox Fruit" }
-    },
-    ["Custom Y Run"] = {
-        ["Enabled"] = true,
-        ["Y Run"] = 500
-    },
+    ["Spam All Skill On V4"] = { ["Enabled"] = true, ["Weapons"] = { "Melee", "Gun", "Sword", "Blox Fruit" } },
+    ["Custom Y Run"] = { ["Enabled"] = true, ["Y Run"] = 500 },
     ["Other"] = {
         ["Turn On V3"] = true,
         ["Turn On V4"] = true,
         ["FPS BOOST"] = false,
         ["White Screen"] = false,
         ["Click Delay"] = 0.5,
-        ["Spin Bot"] = {
-            ["Enable"] = true,
-            ["Spin Speed"] = 15,
-            ["Spin Radius"] = 10,
-        }
+        ["Spin Bot"] = { ["Enable"] = true, ["Spin Speed"] = 15, ["Spin Radius"] = 10 }
     },
     ["Items"] = {
         ["Use"] = { "Melee", "Gun", "Sword", "Blox Fruit" },
@@ -50,43 +37,52 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local root = character:WaitForChild("HumanoidRootPart")
 
-local Remotes = ReplicatedStorage.Remotes
-local CommF = Remotes.CommF_
-local CommE = Remotes.CommE
+local CommF = ReplicatedStorage.Remotes.CommF_
+local CommE = ReplicatedStorage.Remotes.CommE
 
---// Variables
+-- Variables
 local Target = nil
 local IsV4 = false
 local CurrentSea = 1
 local OrbitConnection = nil
 local Tween = nil
 
---// Check World
-if game.PlaceId == 2753915549 or game.PlaceId == 85211729168715 then
-    CurrentSea = 1
-elseif game.PlaceId == 4442272183 or game.PlaceId == 79091703265657 then
-    CurrentSea = 2
-elseif game.PlaceId == 7449423635 or game.PlaceId == 100117331123089 then
-    CurrentSea = 3
+-- Check Sea
+if game.PlaceId == 2753915549 or game.PlaceId == 85211729168715 then CurrentSea = 1
+elseif game.PlaceId == 4442272183 or game.PlaceId == 79091703265657 then CurrentSea = 2
+elseif game.PlaceId == 7449423635 or game.PlaceId == 100117331123089 then CurrentSea = 3
 end
 
---// Helper Functions
+-- Character Handler
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
+    root = newChar:WaitForChild("HumanoidRootPart")
+end)
+
 local function GetFruitName(plr)
-    local fruit = plr.Character:FindFirstChildOfClass("Tool")
-    if fruit and fruit:FindFirstChild("Fruit") then
-        return fruit.Name
+    if plr.Character then
+        for _, tool in pairs(plr.Character:GetChildren()) do
+            if tool:IsA("Tool") and tool:FindFirstChild("Fruit") then
+                return tool.Name
+            end
+        end
     end
     return nil
 end
 
 local function IsV4Active(plr)
-    return plr.Character and plr.Character:FindFirstChild("RaceTransformed") or false
+    return plr.Character and (plr.Character:FindFirstChild("RaceTransformed") or plr.Character:FindFirstChild("Dragon") or plr.Character:FindFirstChild("Leopard"))
 end
 
 local function GetNearestPlayer()
     local nearest, dist = nil, math.huge
     for _, v in ipairs(Players:GetPlayers()) do
         if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") and v.Character.Humanoid.Health > 0 then
+            
+            -- Skip PvP Disabled
+            if v.Character:FindFirstChild("PvPDisabled") or v.Character.Humanoid.Health == 0 then continue end
+
             if Config.Skip.Fruit.Enabled then
                 local fruit = GetFruitName(v)
                 if fruit and table.find(Config.Skip.Fruit.AvoidFruit, fruit) then continue end
@@ -103,133 +99,65 @@ local function GetNearestPlayer()
     return nearest
 end
 
-local function SendWebhook(title, desc, color)
-    if not Config.Webhook.Enabled or Config.Webhook.Url == "" then return end
-    -- Simple webhook code (you can expand)
-    local data = {
-        content = "",
-        embeds = {{
-            title = title,
-            description = desc,
-            color = color or 0x00ff00
-        }}
-    }
-    game:GetService("HttpService"):PostAsync(Config.Webhook.Url, game:GetService("HttpService"):JSONEncode(data))
-end
+-- Auto Team, Buso, Ken, PVP
+task.spawn(function() while task.wait(3) do pcall(function() if not player.Team then CommF:InvokeServer("SetTeam", Config.Team) end end) end end)
+task.spawn(function() while task.wait(0.5) do pcall(function() if not character:FindFirstChild("HasBuso") then CommF:InvokeServer("Buso") end end) end end)
+task.spawn(function() while task.wait() do if getgenv().Observation then pcall(function() CommE:FireServer("Ken", true) end) end end end)
+task.spawn(function() while task.wait(1) do pcall(function() CommF:InvokeServer("EnablePvp") end) end end)
 
---// Auto Team
-task.spawn(function()
-    while task.wait(3) do
-        pcall(function()
-            if player.Team == nil then
-                CommF:InvokeServer("SetTeam", Config.Team)
-            end
-        end)
-    end
-end)
-
---// Auto Buso
-task.spawn(function()
-    while task.wait(0.5) do
-        pcall(function()
-            if character and not character:FindFirstChild("HasBuso") then
-                CommF:InvokeServer("Buso")
-            end
-        end)
-    end
-end)
-
---// Auto Ken (Observation)
-task.spawn(function()
-    while task.wait() do
-        if getgenv().Observation then
-            pcall(function()
-                CommE:FireServer("Ken", true)
-            end)
-        end
-    end
-end)
-
---// Auto Enable PVP
-task.spawn(function()
-    while task.wait(1) do
-        pcall(function()
-            CommF:InvokeServer("EnablePvp")
-        end)
-    end
-end)
-
---// FPS Booster
-if Config.Other["FPS BOOST"] then
-    loadstring(game:HttpGet("https://pastefy.app/96m6gCwx/raw"))()
-end
-
---// White Screen (low CPU)
+-- FPS & White Screen
+if Config.Other["FPS BOOST"] then loadstring(game:HttpGet("https://pastefy.app/96m6gCwx/raw"))() end
 if Config.Other["White Screen"] then
     game:GetService("Lighting").Brightness = 0
     game:GetService("Lighting").ClockTime = 0
-    game:GetService("Lighting").FogEnd = 100000
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("BasePart") and v.Material == Enum.Material.Grass then
-            v.Transparency = 1
-        end
-    end
 end
 
---// Auto V3 & V4
+-- Auto V3 V4
 task.spawn(function()
     while task.wait(1) do
         pcall(function()
-            if Config.Other["Turn On V3"] then
-                CommF:InvokeServer("AwakeningChanger", "V3")
-            end
-            if Config.Other["Turn On V4"] and not IsV4 then
-                CommF:InvokeServer("AwakeningChanger", "V4")
+            if Config.Other["Turn On V3"] then CommF:InvokeServer("AwakeningChanger", "V3") end
+            if Config.Other["Turn On V4"] then
+                IsV4 = IsV4Active(player)
+                if not IsV4 then CommF:InvokeServer("AwakeningChanger", "V4") end
             end
         end)
     end
 end)
 
---// Safe Health + Y Run
+-- Safe Health + Y Run
 task.spawn(function()
     while task.wait(0.2) do
         pcall(function()
             local hp = (humanoid.Health / humanoid.MaxHealth) * 100
             if hp < Config.SafeHealth[1] then
-                if Config.CustomYRun.Enabled then
+                if Config.CustomYRun.Enabled and root then
                     root.CFrame = root.CFrame * CFrame.new(0, Config.CustomYRun.YRun, 0)
                 end
-                -- Dodge logic here
             end
         end)
     end
 end)
 
---// Spin Bot (Orbit)
+-- Orbit
 local function StartOrbit(target)
     if OrbitConnection then OrbitConnection:Disconnect() end
     OrbitConnection = RunService.Heartbeat:Connect(function()
-        if not target or not target.Character then return end
+        if not target or not target.Character or not root then return end
         local angle = tick() * Config.Other.SpinBot.SpinSpeed
-        local offset = Vector3.new(
-            math.cos(angle) * Config.Other.SpinBot.SpinRadius,
-            0,
-            math.sin(angle) * Config.Other.SpinBot.SpinRadius
-        )
+        local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * Config.Other.SpinBot.SpinRadius
         root.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + offset, target.Character.HumanoidRootPart.Position)
     end)
 end
 
 local function StopOrbit()
-    if OrbitConnection then
-        OrbitConnection:Disconnect()
-        OrbitConnection = nil
-    end
+    if OrbitConnection then OrbitConnection:Disconnect() OrbitConnection = nil end
 end
 
+-- Skill System
 local function UseSkill(weapon, skill)
-    local data = Config.Items[weapon].Skills[skill]
-    if not data.Enable then return end
+    local data = Config.Items[weapon] and Config.Items[weapon].Skills[skill]
+    if not data or not data.Enable then return end
 
     local tool = character:FindFirstChild(weapon) or character:FindFirstChildOfClass("Tool")
     if tool then
@@ -244,17 +172,15 @@ end
 local function AttackTarget(target)
     if not target or not target.Character then return end
 
-    -- Spam all skills when V4
     if IsV4 and Config.SpamAllSkillOnV4.Enabled then
         for _, wp in ipairs(Config.SpamAllSkillOnV4.Weapons) do
-            for sk, _ in pairs(Config.Items[wp].Skills) do
+            for sk in pairs(Config.Items[wp].Skills) do
                 UseSkill(wp, sk)
             end
         end
         return
     end
 
-    -- Normal combo
     for _, weapon in ipairs(Config.Items.Use) do
         if Config.Items[weapon].Enable then
             for sk, data in pairs(Config.Items[weapon].Skills) do
@@ -267,7 +193,7 @@ local function AttackTarget(target)
     end
 end
 
---// Main Target Loop
+-- Main Loop
 task.spawn(function()
     while task.wait(0.1) do
         pcall(function()
@@ -275,6 +201,8 @@ task.spawn(function()
             if Target then
                 if Config.Other.SpinBot.Enable then
                     StartOrbit(Target)
+                else
+                    StopOrbit()
                 end
                 AttackTarget(Target)
             else
@@ -282,8 +210,10 @@ task.spawn(function()
             end
         end)
     end
-eend
+end)
 
+-- Island Spawns (đầy đủ)
+--// Island Spawns - ĐẦY ĐỦ
 local IslandSpawns = {
     -- ================= SEA 1 =================
     ["WindMill"] = CFrame.new(979.79895019531, 16.516613006592, 1429.0466308594),
@@ -332,47 +262,42 @@ local IslandSpawns = {
 
 local function TweenTo(pos, speed)
     if Tween then Tween:Cancel() end
+    if not root then return end
     local dist = (root.Position - pos.Position).Magnitude
-    local time = dist / (speed or 350)
-
-    Tween = TweenService:Create(root, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = pos})
+    Tween = TweenService:Create(root, TweenInfo.new(dist / (speed or 350), Enum.EasingStyle.Linear), {CFrame = pos})
     Tween:Play()
     Tween.Completed:Wait()
 end
 
---// Teleport to nearest island with players
+-- Auto Teleport Island
 task.spawn(function()
-    while task.wait(15) do
+    while task.wait(12) do
         pcall(function()
             if not Target then
-                for name, cframe in pairs(IslandSpawns) do
-                    if #Players:GetPlayers() > 1 then -- có người
-                        TweenTo(cframe, 350)
-                        task.wait(3)
-                    end
+                for _, cframe in pairs(IslandSpawns) do
+                    TweenTo(cframe, 350)
+                    task.wait(3)
+                    break
                 end
             end
         end)
     end
 end)
 
---// Aim Camera
+-- Aim Camera
 task.spawn(function()
-    while task.wait() do
-        if Target and Target.Character then
-            Workspace.CurrentCamera.CFrame = CFrame.lookAt(
-                Workspace.CurrentCamera.CFrame.Position,
-                Target.Character.HumanoidRootPart.Position
-            )
+    while task.wait(0.05) do
+        if Target and Target.Character and Target.Character:FindFirstChild("HumanoidRootPart") then
+            Workspace.CurrentCamera.CFrame = CFrame.lookAt(Workspace.CurrentCamera.CFrame.Position, Target.Character.HumanoidRootPart.Position)
         end
     end
 end)
 
---// Anti AFK
+-- Anti AFK
 player.Idled:Connect(function()
     VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
     task.wait(1)
     VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
 end)
 
-print("✅ Auto Bounty Script Loaded Successfully!")
+print("✅ Auto Bounty Script Loaded Successfully! | Sea " .. CurrentSea)
